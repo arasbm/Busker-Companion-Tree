@@ -17,15 +17,19 @@
 // Note that for older NeoPixel strips you might need to change the third parameter--see the strandtest
 // example for more information on possible values.
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
-const int minDelay = 3;
-const int maxDelay = 50;
-int delayVal = 50;
+const int maxSpeed = 40;
+const int minSpeed = 1;
+int delayVal = 5;
 
 const int sensor = A0; // the piezo is connected to analog pin 0
+const int sensitivityPot = A2;
 int sensorVal = 0;     // variable to store the value read from the sensor pin
+int sensitivity = 0;
 int halfDist = 0;
 int thirdDist = 0;
 int pos = 0; // start position of animation
+int counter = 0; // 0 to 1024 counter to sync everything
+int runningSpeed = 1;
 
 void setup() {
   // This is for Trinket 5V 16MHz, you can remove these three lines if you are not using a Trinket
@@ -35,15 +39,23 @@ void setup() {
   // End of trinket special code
 
   pixels.begin(); // This initializes the NeoPixel library.
+  pinMode(13, OUTPUT);
   //Serial.begin(9600);
 }
 
 void loop() {
+  counter = (counter + 1) % 1024;
+  
   // For a set of NeoPixels the first NeoPixel is 0, second is 1, all the way up to the count of pixels minus one.
-  pos = (pos + 1) % NUMPIXELS;
-  sensorVal = analogRead(sensor) + 2;
-  halfDist = (sensorVal*sensorVal/2) % 40;
-  thirdDist = (sensorVal*sensorVal/3) % 20;
+  if(counter % (int)(40.0 / runningSpeed) == 0) {
+    pos = (pos + 1) % NUMPIXELS;
+  }
+  sensorVal = analogRead(sensor) + 1;
+  sensitivity = (analogRead(sensitivityPot) / 1024.0) * 20 + 1; // should give a number from 1 to 20
+    
+  halfDist = (sensorVal*sensitivity/3) % 50;
+  thirdDist = (sensorVal*sensitivity/5) % 30;
+  
   for(int i=0;i<NUMPIXELS;i++){
     if(i < pos - halfDist || i > pos + halfDist) {
       pixels.setPixelColor(i, pixels.Color(0,0,0));
@@ -61,22 +73,27 @@ void loop() {
   }
 
   // slow down after a while when nothing is happening
-  if(halfDist < 10) {
-    if(delayVal < maxDelay && (pos % 20) == 0) {
-      delayVal += 1;
+  if(halfDist < 5) {
+    if(runningSpeed > minSpeed && (counter % 20) == 0) {
+      runningSpeed -= 1;
     }
   }
   
-  if(halfDist > 9) {
+  if(halfDist > 4) {
     // speed up when action is happening
-    if(delayVal > minDelay) {
-      delayVal = delayVal - 5;
-      if(delayVal < minDelay) {
-        delayVal = minDelay;
+    if(runningSpeed < maxSpeed) {
+      runningSpeed = runningSpeed + 4;
+      if(runningSpeed > maxSpeed) {
+        runningSpeed = maxSpeed;
       }
     }
   }
 
+  if(pos % 10 == 0) {
+    digitalWrite(13, HIGH);
+  } else {
+    digitalWrite(13, LOW);
+  }
   pixels.show(); // This sends the updated pixel color to the hardware
   delay(delayVal);
 }
